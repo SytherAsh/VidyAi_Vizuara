@@ -1,0 +1,8 @@
+streamlit
+wikipedia
+groq
+requests
+Pillow
+regex
+python-dotenv
+

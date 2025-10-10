@@ -1,0 +1,5 @@
+/.venv
+/test
+.env
+wiki_comic_generator.log
+__pycache__
