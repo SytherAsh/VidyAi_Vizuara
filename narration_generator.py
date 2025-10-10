@@ -138,14 +138,19 @@ class NarrationGenerator:
         - EXACTLY 2 sentences
         - TOTAL 28–40 words
         - Punchy, cinematic, and engaging
-        - Do NOT repeat visual details verbatim; complement the visuals
-        - No filler, no generic commentary, no hashtags, no emojis
+        - Complement the visuals without repeating them verbatim
+        - Ground strictly in the provided STORYLINE and SCENE PROMPT
+        - Do NOT introduce facts, characters, or events not present in the sources
+        - If a detail is uncertain, omit it rather than inventing
         
         STYLE:
         - Style: {narration_style} - {style_guidance}
         - Tone: {voice_tone} - {tone_guidance}
         
-        SCENE CONTEXT (for reference only, do not echo lines):
+        STORYLINE (source of truth):
+        {self.load_story_content(title).get('storyline', '')}
+        
+        SCENE PROMPT (visual context):
         {scene_prompt}
         
         Output exactly 2 sentences totaling 28–40 words. No extra text.

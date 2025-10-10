@@ -506,7 +506,7 @@ def main():
                 idx = i + j
                 if idx < len(st.session_state.comic_images):
                     with cols[j]:
-                        st.image(st.session_state.comic_images[idx], caption=f"Scene {idx+1}", use_column_width=True)
+                        st.image(st.session_state.comic_images[idx], caption=f"Scene {idx+1}", use_container_width=True)
                         # Add scene prompt as a caption
                         if idx < len(st.session_state.scene_prompts):
                             scene_prompt = st.session_state.scene_prompts[idx]

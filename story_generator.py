@@ -86,6 +86,7 @@ class StoryGenerator:
         - 3 acts with clear transitions
         - Historically accurate; no invented facts
         - Use only details present in the provided content
+        - If any important detail is uncertain or missing in the source, omit it rather than inventing
         
         FORMAT (FOLLOW EXACTLY):
         # {title}: Comic Storyline
@@ -188,13 +189,14 @@ class StoryGenerator:
         3. 50–80 words describing setting, characters, actions, framing, lighting
         4. Maintain character and setting consistency across scenes
         5. Adhere to the {comic_style} style characteristics
+        6. Do NOT introduce new facts, characters, places, or events not present in the storyline
 
         STYLE PARAMETERS:
         - Comic Style: {comic_style} — {style_guidance}
         - Age Group: {age_group} — {age_guidance}
         - Education Level: {education_level} — {education_guidance}
 
-        STORYLINE TO CONVERT:
+        STORYLINE TO CONVERT (the only source of truth; no external inventions):
         {storyline}
 
         OUTPUT FORMAT (FOLLOW EXACTLY, NO EXTRA LINES):

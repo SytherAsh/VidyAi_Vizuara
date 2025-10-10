@@ -123,6 +123,10 @@ class ComicImageGenerator:
             - Colors: vibrant but not oversaturated
             - Character consistency: match designs across panels
             
+            Grounding:
+            - Depict ONLY the elements present in the "Visual content" above
+            - Do NOT introduce new characters, symbols, or text
+            
             Quality standards:
             - Professional comic art quality
             - Clear expressions and readable poses
