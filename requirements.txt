@@ -5,4 +5,5 @@ requests
 Pillow
 regex
 python-dotenv
+edge-tts
 

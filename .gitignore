@@ -3,3 +3,4 @@
 .env
 wiki_comic_generator.log
 __pycache__
+data

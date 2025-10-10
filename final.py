@@ -7,6 +7,7 @@ from wikipedia_extractor import WikipediaExtractor
 from story_generator import StoryGenerator
 from comic_image_generator import ComicImageGenerator
 from narration_generator import NarrationGenerator
+from tts_generator import generate_scene_audios, synthesize_to_mp3
 
 # Load environment variables from .env if present
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -423,6 +424,73 @@ def main():
                 file_name=f"{st.session_state.page_info['title']}_complete_narration.txt",
                 mime="text/plain"
             )
+
+        # TTS generation controls
+        st.markdown("---")
+        st.markdown('<div class="sub-header">Text-to-Speech (MP3)</div>', unsafe_allow_html=True)
+
+        # Voice selection and params
+        voice = st.selectbox(
+            "Voice",
+            options=[
+                "en-IN-NeerjaNeural",
+                "en-US-AriaNeural",
+                "en-GB-LibbyNeural",
+                "en-US-GuyNeural",
+                "en-AU-NatashaNeural"
+            ],
+            index=0,
+            help="Select the voice for narration audio"
+        )
+        rate = st.slider("Speech Rate", min_value=-50, max_value=50, value=0, format="%d%%")
+        volume = st.slider("Volume", min_value=-50, max_value=50, value=0, format="%d%%")
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("Generate MP3s for All Scenes", type="primary"):
+                with st.spinner("Generating MP3 files for all scenes..."):
+                    audio_paths = generate_scene_audios(
+                        st.session_state.narrations,
+                        st.session_state.page_info["title"],
+                        base_dir="data/narration",
+                        voice=voice,
+                        rate=f"{rate:+d}%",
+                        volume=f"{volume:+d}%"
+                    )
+                    st.session_state.audio_paths = audio_paths
+                    st.success(f"Generated {len(audio_paths)} MP3 files")
+        with col_b:
+            scene_num_single = st.number_input(
+                "Generate Single Scene MP3",
+                min_value=1,
+                max_value=st.session_state.narrations.get("total_scenes", len(st.session_state.narrations.get("narrations", {}))),
+                value=1,
+            )
+            if st.button("Generate MP3 for Scene", key="gen_single_mp3"):
+                scene_key = f"scene_{int(scene_num_single)}"
+                scene_data = st.session_state.narrations["narrations"].get(scene_key)
+                if scene_data:
+                    text = scene_data.get("narration", "").strip()
+                    safe_title = st.session_state.page_info["title"].replace('/', '_')
+                    out_dir = os.path.join("data/narration", safe_title, "audio")
+                    os.makedirs(out_dir, exist_ok=True)
+                    mp3_path = os.path.join(out_dir, f"scene_{int(scene_num_single)}.mp3")
+                    synthesize_to_mp3(text, mp3_path, voice=voice, rate=f"{rate:+d}%", volume=f"{volume:+d}%")
+                    if "audio_paths" not in st.session_state:
+                        st.session_state.audio_paths = {}
+                    st.session_state.audio_paths[scene_key] = mp3_path
+                    st.success(f"Generated MP3 for scene {int(scene_num_single)}")
+
+        # Preview audio players if available
+        if hasattr(st.session_state, "audio_paths") and st.session_state.audio_paths:
+            st.markdown("### Scene Audio Previews")
+            for scene_key, scene_data in st.session_state.narrations["narrations"].items():
+                scene_num = scene_data["scene_number"]
+                mp3_path = st.session_state.audio_paths.get(scene_key)
+                if mp3_path and os.path.exists(mp3_path):
+                    st.markdown(f"Scene {scene_num}")
+                    with open(mp3_path, "rb") as f:
+                        st.audio(f.read(), format="audio/mp3")
     
     # Display generated comic images
     if st.session_state.comic_images:
