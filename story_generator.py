@@ -1,6 +1,8 @@
 import re
+import os
+import json
 import logging
-from typing import List
+from typing import List, Dict, Any
 from groq import Groq
 
 # Configure logging
@@ -8,15 +10,43 @@ logger = logging.getLogger("WikiComicGenerator")
 
 
 class StoryGenerator:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, text_dir: str = "data/text"):
         """
         Initialize the Groq story generator
         
         Args:
             api_key: Groq API key
+            text_dir: Directory to store generated text content
         """
         self.client = Groq(api_key=api_key)
+        self.text_dir = text_dir
+        self.create_text_directory()
         logger.info("StoryGenerator initialized with Groq client")
+
+    def create_text_directory(self) -> None:
+        """Create text directory for storing story content"""
+        try:
+            if not os.path.exists(self.text_dir):
+                os.makedirs(self.text_dir)
+                logger.info(f"Created text directory: {self.text_dir}")
+        except Exception as e:
+            logger.error(f"Failed to create text directory: {str(e)}")
+            raise RuntimeError(f"Failed to create text directory: {str(e)}")
+
+    def sanitize_filename(self, filename: str) -> str:
+        """
+        Sanitize a string to be used as a filename
+        
+        Args:
+            filename: Original filename string
+            
+        Returns:
+            Sanitized filename safe for all operating systems
+        """
+        # Replace invalid characters with underscores
+        sanitized = re.sub(r'[\\/*?:"<>|]', '_', filename)
+        # Limit filename length
+        return sanitized[:200]
 
     def generate_comic_storyline(self, title: str, content: str, target_length: str = "medium") -> str:
         """
@@ -241,3 +271,116 @@ class StoryGenerator:
         except Exception as e:
             logger.error(f"Failed to generate scene prompts: {str(e)}")
             return [f"Error generating scene prompt: {str(e)}"]
+
+    def save_story_content(self, title: str, storyline: str, scene_prompts: List[str], page_info: Dict[str, Any] = None) -> Dict[str, str]:
+        """
+        Save story content to text files for further processing
+        
+        Args:
+            title: Title of the story
+            storyline: Generated storyline
+            scene_prompts: List of scene prompts
+            page_info: Wikipedia page information (optional)
+            
+        Returns:
+            Dictionary with file paths of saved content
+        """
+        try:
+            # Sanitize title for filename
+            safe_title = self.sanitize_filename(title)
+            
+            # Create story directory
+            story_dir = os.path.join(self.text_dir, safe_title)
+            if not os.path.exists(story_dir):
+                os.makedirs(story_dir)
+                logger.info(f"Created story directory: {story_dir}")
+            
+            file_paths = {}
+            
+            # Save storyline
+            storyline_path = os.path.join(story_dir, f"{safe_title}_storyline.txt")
+            with open(storyline_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {title} - Comic Storyline\n\n")
+                f.write(storyline)
+            file_paths['storyline'] = storyline_path
+            logger.info(f"Saved storyline to: {storyline_path}")
+            
+            # Save scene prompts
+            scenes_path = os.path.join(story_dir, f"{safe_title}_scene_prompts.txt")
+            with open(scenes_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {title} - Scene Prompts\n\n")
+                for i, prompt in enumerate(scene_prompts, 1):
+                    f.write(f"## Scene {i}\n")
+                    f.write(prompt)
+                    f.write("\n\n" + "="*50 + "\n\n")
+            file_paths['scenes'] = scenes_path
+            logger.info(f"Saved scene prompts to: {scenes_path}")
+            
+            # Save page info as JSON for reference
+            if page_info:
+                page_info_path = os.path.join(story_dir, f"{safe_title}_page_info.json")
+                with open(page_info_path, 'w', encoding='utf-8') as f:
+                    json.dump(page_info, f, ensure_ascii=False, indent=2)
+                file_paths['page_info'] = page_info_path
+                logger.info(f"Saved page info to: {page_info_path}")
+            
+            # Create combined content file
+            combined_path = os.path.join(story_dir, f"{safe_title}_combined.txt")
+            with open(combined_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {title} - Complete Story Content\n\n")
+                f.write("## Storyline\n")
+                f.write(storyline)
+                f.write("\n\n" + "="*80 + "\n\n")
+                f.write("## Scene Prompts\n\n")
+                for i, prompt in enumerate(scene_prompts, 1):
+                    f.write(f"### Scene {i}\n")
+                    f.write(prompt)
+                    f.write("\n\n" + "-"*50 + "\n\n")
+            file_paths['combined'] = combined_path
+            logger.info(f"Saved combined content to: {combined_path}")
+            
+            return file_paths
+            
+        except Exception as e:
+            logger.error(f"Failed to save story content: {str(e)}")
+            return {}
+
+    def generate_and_save_story(self, title: str, content: str, target_length: str = "medium",
+                               comic_style: str = "western comic", num_scenes: int = 10,
+                               age_group: str = "general", education_level: str = "standard",
+                               page_info: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Generate complete story and save all content to text files
+        
+        Args:
+            title: Title of the story
+            content: Wikipedia content
+            target_length: Desired length of the story
+            comic_style: Selected comic art style
+            num_scenes: Number of scenes to generate
+            age_group: Target age group
+            education_level: Education level for content complexity
+            page_info: Wikipedia page information (optional)
+            
+        Returns:
+            Dictionary containing generated content and file paths
+        """
+        logger.info(f"Generating complete story for '{title}'")
+        
+        # Generate storyline
+        storyline = self.generate_comic_storyline(title, content, target_length)
+        
+        # Generate scene prompts
+        scene_prompts = self.generate_scene_prompts(
+            title, storyline, comic_style, num_scenes, age_group, education_level
+        )
+        
+        # Save all content to text files
+        file_paths = self.save_story_content(title, storyline, scene_prompts, page_info)
+        
+        return {
+            "title": title,
+            "storyline": storyline,
+            "scene_prompts": scene_prompts,
+            "file_paths": file_paths
+        }

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from wikipedia_extractor import WikipediaExtractor
 from story_generator import StoryGenerator
 from comic_image_generator import ComicImageGenerator
+from narration_generator import NarrationGenerator
 
 # Load environment variables from .env if present
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +51,14 @@ def main():
         st.session_state.scene_prompts = None
     if 'comic_images' not in st.session_state:
         st.session_state.comic_images = None
+    if 'story_saved' not in st.session_state:
+        st.session_state.story_saved = False
+    if 'narrations' not in st.session_state:
+        st.session_state.narrations = None
+    if 'narration_style' not in st.session_state:
+        st.session_state.narration_style = "dramatic"
+    if 'voice_tone' not in st.session_state:
+        st.session_state.voice_tone = "engaging"
     
     # Add custom CSS
     st.markdown("""
@@ -156,6 +165,29 @@ def main():
         )
         
         st.markdown("---")
+        st.markdown("## Narration Settings")
+        
+        # Narration style
+        narration_style = st.selectbox(
+            "Narration Style",
+            options=["dramatic", "educational", "storytelling", "documentary"],
+            index=0,
+            help="Select the style of narration for your comic"
+        )
+        
+        # Voice tone
+        voice_tone = st.selectbox(
+            "Voice Tone",
+            options=["engaging", "serious", "playful", "informative"],
+            index=0,
+            help="Select the tone of voice for narration"
+        )
+        
+        # Update session state
+        st.session_state.narration_style = narration_style
+        st.session_state.voice_tone = voice_tone
+        
+        st.markdown("---")
         st.markdown("### About")
         st.markdown("""
         This app extracts content from Wikipedia, uses Groq to generate
@@ -250,6 +282,8 @@ def main():
                             st.session_state.storyline = storyline
                             st.session_state.scene_prompts = None
                             st.session_state.comic_images = None
+                            st.session_state.story_saved = False
+                            st.session_state.narrations = None
     
     # Display generated storyline
     if st.session_state.storyline:
@@ -283,6 +317,17 @@ def main():
                     )
                     st.session_state.scene_prompts = scene_prompts
                     st.session_state.comic_images = None
+                    
+                    # Save story content to text files
+                    with st.spinner("Saving story content to text files..."):
+                        file_paths = story_generator.save_story_content(
+                            st.session_state.page_info["title"],
+                            st.session_state.storyline,
+                            scene_prompts,
+                            st.session_state.page_info
+                        )
+                        st.session_state.story_saved = True
+                        st.success("Story content saved to text files!")
         
         # Display generated scene prompts
     if st.session_state.scene_prompts:
@@ -294,6 +339,46 @@ def main():
             for i, prompt in enumerate(st.session_state.scene_prompts):
                 st.markdown(f"### Scene {i+1}")
                 st.text_area(f"Prompt for Scene {i+1}", value=prompt, height=150, key=f"scene_prompt_{i}")
+        
+        # Narration generation section
+        if st.session_state.story_saved:
+            st.markdown("---")
+            st.markdown('<div class="sub-header">Generate Narration</div>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("Generate All Scene Narrations", type="secondary"):
+                    if not groq_api_key:
+                        st.error("Please enter your Groq API key in the sidebar to continue.")
+                    else:
+                        with st.spinner(f"Generating narrations for all {len(st.session_state.scene_prompts)} scenes..."):
+                            narration_generator = NarrationGenerator(api_key=groq_api_key)
+                            narrations = narration_generator.generate_all_scene_narrations(
+                                st.session_state.page_info["title"],
+                                st.session_state.narration_style,
+                                st.session_state.voice_tone
+                            )
+                            st.session_state.narrations = narrations
+                            st.success(f"Generated narrations for {len(st.session_state.scene_prompts)} scenes!")
+            
+            with col2:
+                if st.button("Generate Single Scene Narration", type="secondary"):
+                    if not groq_api_key:
+                        st.error("Please enter your Groq API key in the sidebar to continue.")
+                    else:
+                        scene_number = st.number_input("Scene Number", min_value=1, max_value=len(st.session_state.scene_prompts), value=1)
+                        if st.button("Generate", key="generate_single_narration"):
+                            with st.spinner(f"Generating narration for scene {scene_number}..."):
+                                narration_generator = NarrationGenerator(api_key=groq_api_key)
+                                narration = narration_generator.generate_scene_narration(
+                                    st.session_state.page_info["title"],
+                                    st.session_state.scene_prompts[scene_number - 1],
+                                    scene_number,
+                                    st.session_state.narration_style,
+                                    st.session_state.voice_tone
+                                )
+                                st.text_area(f"Narration for Scene {scene_number}", value=narration, height=100)
         
         # Generate comic images button
         if st.button("Generate Comic Images", type="primary"):
@@ -313,6 +398,31 @@ def main():
                         st.success(f"Successfully generated {len(image_paths)} comic panels!")
                     else:
                         st.error("Failed to generate comic images. Please check the logs for details.")
+    
+    # Display generated narrations
+    if st.session_state.narrations:
+        st.markdown("---")
+        st.markdown('<div class="sub-header">Generated Narrations</div>', unsafe_allow_html=True)
+        
+        # Display narrations in an expandable section
+        with st.expander("Show All Narrations", expanded=False):
+            for scene_key, scene_data in st.session_state.narrations['narrations'].items():
+                scene_num = scene_data['scene_number']
+                narration = scene_data['narration']
+                st.markdown(f"### Scene {scene_num}")
+                st.text_area(f"Narration for Scene {scene_num}", value=narration, height=100, key=f"narration_{scene_num}")
+        
+        # Download button for narrations
+        if 'file_paths' in st.session_state.narrations and 'complete' in st.session_state.narrations['file_paths']:
+            with open(st.session_state.narrations['file_paths']['complete'], 'r', encoding='utf-8') as f:
+                narration_content = f.read()
+            
+            st.download_button(
+                label="Download Complete Narration",
+                data=narration_content,
+                file_name=f"{st.session_state.page_info['title']}_complete_narration.txt",
+                mime="text/plain"
+            )
     
     # Display generated comic images
     if st.session_state.comic_images:
@@ -349,7 +459,9 @@ def main():
             st.session_state.storyline = None
             st.session_state.scene_prompts = None
             st.session_state.comic_images = None
-            st.experimental_rerun()
+            st.session_state.story_saved = False
+            st.session_state.narrations = None
+            st.rerun()
 
 # Call main function if script is run directly
 if __name__ == "__main__":
