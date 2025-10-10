@@ -77,44 +77,39 @@ class StoryGenerator:
             logger.info(f"Content too long ({len(content)} chars), truncating to {max_chars} chars")
             content = content[:max_chars] + "..."
         
-        # Create prompt for the LLM
+        # Create prompt for the LLM (strict, production-ready, no extra text)
         prompt = f"""
-        Create an engaging and detailed comic book storyline based on the following Wikipedia article about "{title}".
+        You are creating a professional comic book storyline for "{title}" strictly from the provided Wikipedia content. Follow the format EXACTLY and do not include any additional commentary.
         
-        The storyline should:
-        1. Be approximately {word_count} words
-        2. Capture the most important facts and details from the article
-        3. Have a clear beginning, middle, and end
-        4. Include vivid descriptions of key scenes suitable for comic panels
-        5. Feature compelling characters based on real figures from the topic
-        6. Include dialogue suggestions for major moments
-        7. Be organized into distinct scenes or chapters
-        8. Balance educational content with entertainment value
+        HARD REQUIREMENTS:
+        - Target length: ~{word_count} words (±50 words)
+        - 3 acts with clear transitions
+        - Historically accurate; no invented facts
+        - Use only details present in the provided content
         
-        Here is the Wikipedia content to base your storyline on:
-        
-        {content}
-        
-        FORMAT YOUR RESPONSE AS:
+        FORMAT (FOLLOW EXACTLY):
         # {title}: Comic Storyline
         
         ## Overview
-        [Brief overview of the storyline]
+        [Exactly 2 sentences summarizing the core arc]
         
         ## Main Characters
-        [List of main characters with short descriptions]
+        [3-5 character entries; each a single sentence with role and trait]
         
-        ## Act 1: [Title]
-        [Detailed storyline for Act 1 with scene descriptions and key dialogue]
+        ## Act 1: [Specific Title]
+        [~{word_count // 3} words covering setup, stakes, and inciting event]
         
-        ## Act 2: [Title]
-        [Detailed storyline for Act 2 with scene descriptions and key dialogue]
+        ## Act 2: [Specific Title]
+        [~{word_count // 3} words covering conflict, turning points, and developments]
         
-        ## Act 3: [Title]
-        [Detailed storyline for Act 3 with scene descriptions and key dialogue]
+        ## Act 3: [Specific Title]
+        [~{word_count // 3} words covering resolution and lasting impact]
         
         ## Key Visuals
-        [Suggestions for important visual elements to include in the comic]
+        [Exactly 5 bullet points describing scene-worthy visuals]
+        
+        SOURCE MATERIAL (use only this):
+        {content}
         """
         
         try:
@@ -125,7 +120,7 @@ class StoryGenerator:
                     {"role": "user", "content": prompt}
                 ],
                 model="llama-3.1-8b-instant",
-                temperature=0.7,
+                temperature=0.4,
                 max_tokens=4000,
                 top_p=0.9
             )
@@ -183,47 +178,42 @@ class StoryGenerator:
             "advanced": "Use field-specific terminology where appropriate and explore concepts in depth. Present nuanced details and sophisticated analysis of the subject matter."
         }.get(education_level.lower(), "Present educational content with balanced complexity suitable for interested general readers.")
         
-        # Create prompt for the LLM
+        # Create prompt for the LLM (no dialog lines; concise visual-only prompts)
         prompt = f"""
-        Based on the following comic storyline about "{title}", create exactly {num_scenes} sequential scene prompts for generating comic panels.
+        Based on the following comic storyline about "{title}", create EXACTLY {num_scenes} sequential scene prompts for image generation.
 
-        Each scene prompt MUST:
-        1. Follow a logical narrative sequence from beginning to end
-        2. Include DETAILED visual descriptions of the scene, setting, characters, and actions
-        3. Include ZERO text elements in the image (no dialogue, no captions, no narrator/voiceover). The generator should leave clean composition space but must not render any text.
-        4. Maintain character consistency throughout all scenes
-        5. Be self-contained but connect logically to the previous and next scenes
-        6. Incorporate specific visual elements from the {comic_style} comic art style
+        REQUIREMENTS FOR EVERY SCENE:
+        1. Strict narrative order from start to finish
+        2. Visual description ONLY (no text, no captions, no speech, no voiceover)
+        3. 50–80 words describing setting, characters, actions, framing, lighting
+        4. Maintain character and setting consistency across scenes
+        5. Adhere to the {comic_style} style characteristics
 
-        IMPORTANT PARAMETERS TO FOLLOW:
+        STYLE PARAMETERS:
         - Comic Style: {comic_style} — {style_guidance}
         - Age Group: {age_group} — {age_guidance}
         - Education Level: {education_level} — {education_guidance}
 
-        Here is the comic storyline to convert into scene prompts:
-        
+        STORYLINE TO CONVERT:
         {storyline}
-        
-        FORMAT EACH SCENE PROMPT AS:
-        Scene [number]: [Brief scene title]
-        Visual: [Extremely detailed visual description of the scene including setting, characters, positions, expressions, actions, and any specific visual elements. Do NOT include any text, speech, captions, or on-screen words. Leave clean space where speech bubbles could go, but render no text.]
-        Style: {comic_style} style with [specific stylistic elements to emphasize].
-        
-        PROVIDE EXACTLY {num_scenes} SCENES IN SEQUENTIAL ORDER.
-        MAKE SURE EACH SCENE HAS AT LEAST ONE DIALOG LINE, as these will be directly included in speech bubbles.
-        ENSURE ALL DIALOG TEXT IS GRAMMATICALLY CORRECT and appropriate for the target audience.
-        SCENE DESCRIPTIONS MUST BE EXTREMELY DETAILED to ensure the image generator can create accurate images.
+
+        OUTPUT FORMAT (FOLLOW EXACTLY, NO EXTRA LINES):
+        Scene [number]: [Specific scene title]
+        Visual: [50–80 word, visual-only description; no text elements]
+        Style: {comic_style} with [specific stylistic elements to emphasize]
+
+        Produce EXACTLY {num_scenes} scenes.
         """
         
         try:
             # Generate scene prompts using Groq
             response = self.client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "You are an expert comic book artist and writer who creates detailed, engaging scene descriptions for comic panels with consistent characters and storylines. You always ensure dialog is grammatically correct and include specific dialog text for each scene."},
+                    {"role": "system", "content": "You are an expert comic artist who outputs concise, visual-only, production-ready scene prompts with zero on-image text."},
                     {"role": "user", "content": prompt}
                 ],
                 model="llama-3.1-8b-instant",
-                temperature=0.7,
+                temperature=0.4,
                 max_tokens=4000,
                 top_p=0.9
             )

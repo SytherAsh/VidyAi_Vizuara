@@ -130,30 +130,25 @@ class NarrationGenerator:
             "informative": "Use a clear, professional tone that focuses on delivering information effectively."
         }.get(voice_tone.lower(), "Use a clear and engaging tone.")
         
-        # Create prompt for narration generation
+        # Create prompt for narration generation (short, reel-style)
         prompt = f"""
-        Create a compelling narration for scene {scene_number} of a comic about "{title}".
+        Create a concise, captivating voice-over for scene {scene_number} of "{title}". Keep it short like a social media reel narration.
         
-        NARRATION REQUIREMENTS:
-        1. Length: 2-4 sentences (approximately 50-100 words)
-        2. Style: {narration_style} - {style_guidance}
-        3. Tone: {voice_tone} - {tone_guidance}
-        4. Purpose: Set the scene, provide context, and enhance the visual storytelling
-        5. Format: Write as a narrator's voice-over that would accompany the comic panel
+        STRICT REQUIREMENTS:
+        - EXACTLY 2 sentences
+        - TOTAL 28–40 words
+        - Punchy, cinematic, and engaging
+        - Do NOT repeat visual details verbatim; complement the visuals
+        - No filler, no generic commentary, no hashtags, no emojis
         
-        SCENE INFORMATION:
+        STYLE:
+        - Style: {narration_style} - {style_guidance}
+        - Tone: {voice_tone} - {tone_guidance}
+        
+        SCENE CONTEXT (for reference only, do not echo lines):
         {scene_prompt}
         
-        NARRATION GUIDELINES:
-        - Start with a hook that draws the audience in
-        - Describe the key visual elements and their significance
-        - Provide context that enhances understanding
-        - Use vivid, descriptive language
-        - End with a transition or cliffhanger if appropriate
-        - Avoid repeating information that's already visible in the image
-        - Make it suitable for voice-over narration (smooth, flowing language)
-        
-        Write the narration as a single paragraph that flows naturally when spoken aloud.
+        Output exactly 2 sentences totaling 28–40 words. No extra text.
         """
         
         try:
@@ -164,7 +159,7 @@ class NarrationGenerator:
                     {"role": "user", "content": prompt}
                 ],
                 model="llama-3.1-8b-instant",
-                temperature=0.7,
+                temperature=0.3,
                 max_tokens=500,
                 top_p=0.9
             )

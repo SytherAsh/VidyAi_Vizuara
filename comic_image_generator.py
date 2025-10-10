@@ -107,15 +107,28 @@ class ComicImageGenerator:
             style_match = re.search(r'Style:\s*(.+?)$', cleaned_prompt, re.DOTALL)
             style_info = style_match.group(1).strip() if style_match else ""
             
-            # Create an enhanced prompt focused on the visual elements
+            # Create an enhanced prompt focused on the visual elements with technical specs
             enhanced_prompt = f"""
-            Generate a detailed comic panel showing:
+            Create a high-quality comic panel with these exact specifications:
+            
+            Visual content:
             {visual_description}
             
-            Style details: {style_info}
+            Technical requirements:
+            - Aspect ratio: 16:9 landscape
+            - Resolution: high definition, crisp details
+            - Style: {style_info}
+            - Composition: clear, balanced framing; no on-image text
+            - Lighting: cinematic with clear highlights and shadows
+            - Colors: vibrant but not oversaturated
+            - Character consistency: match designs across panels
             
-            Important: Create a detailed, high-quality comic panel with clear characters and setting.
-            Ensure accurate representation of the described scene. Leave space for dialog bubbles.
+            Quality standards:
+            - Professional comic art quality
+            - Clear expressions and readable poses
+            - Detailed but clean backgrounds
+            - Consistent art style with prior panels
+            - Absolutely no text, captions, or speech bubbles in the image
             """
             
             return enhanced_prompt
