@@ -98,7 +98,8 @@ class NarrationGenerator:
             return {}
 
     def generate_scene_narration(self, title: str, scene_prompt: str, scene_number: int, 
-                                narration_style: str = "dramatic", voice_tone: str = "engaging") -> str:
+                                narration_style: str = "dramatic", voice_tone: str = "engaging",
+                                target_seconds: int = 0, min_words: int = 18, max_words: int = 28) -> str:
         """
         Generate narration for a specific scene
         
@@ -130,13 +131,22 @@ class NarrationGenerator:
             "informative": "Use a clear, professional tone that focuses on delivering information effectively."
         }.get(voice_tone.lower(), "Use a clear and engaging tone.")
         
+        # Determine word range based on target seconds if provided (heuristic ~2.5 wps)
+        if target_seconds and target_seconds > 0:
+            approx_words = int(target_seconds * 2.5)
+            lo = max(min_words, approx_words - 4)
+            hi = max(max_words, approx_words + 4)
+        else:
+            lo = min_words
+            hi = max_words
+
         # Create prompt for narration generation (short, reel-style)
         prompt = f"""
         Create a concise, captivating voice-over for scene {scene_number} of "{title}". Keep it short like a social media reel narration.
         
         STRICT REQUIREMENTS:
         - EXACTLY 2 sentences
-        - TOTAL 28–40 words
+        - TOTAL {lo}–{hi} words
         - Punchy, cinematic, and engaging
         - Complement the visuals without repeating them verbatim
         - Ground strictly in the provided STORYLINE and SCENE PROMPT
@@ -153,7 +163,7 @@ class NarrationGenerator:
         SCENE PROMPT (visual context):
         {scene_prompt}
         
-        Output exactly 2 sentences totaling 28–40 words. No extra text.
+        Output exactly 2 sentences totaling {lo}–{hi} words. No extra text.
         """
         
         try:

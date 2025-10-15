@@ -3,7 +3,7 @@ import re
 import time
 import logging
 import requests
-from typing import List
+from typing import List, Optional
 
 # Configure logging
 logger = logging.getLogger("WikiComicGenerator")
@@ -88,7 +88,7 @@ class ComicImageGenerator:
         
         return dialog_lines
 
-    def _enhance_scene_prompt(self, scene_prompt: str) -> str:
+    def _enhance_scene_prompt(self, scene_prompt: str, style_sheet: str = "", character_sheet: str = "", negative_concepts: Optional[List[str]] = None, aspect_ratio: str = "16:9") -> str:
         """Enhance the scene prompt to improve image generation accuracy"""
         # Remove narrator/caption/voiceover lines from the prompt entirely
         cleaned_prompt = re.sub(
@@ -106,6 +106,14 @@ class ComicImageGenerator:
             # Extract style information
             style_match = re.search(r'Style:\s*(.+?)$', cleaned_prompt, re.DOTALL)
             style_info = style_match.group(1).strip() if style_match else ""
+            negatives_text = ""
+            if negative_concepts:
+                negatives_text = "\nNegative prompts to strictly avoid: " + ", ".join(negative_concepts)
+            sheets_text = ""
+            if style_sheet:
+                sheets_text += f"\nStyle sheet to follow consistently: {style_sheet}"
+            if character_sheet:
+                sheets_text += f"\nCharacter sheet (identities, outfits, colors) to maintain across scenes: {character_sheet}"
             
             # Create an enhanced prompt focused on the visual elements with technical specs
             enhanced_prompt = f"""
@@ -115,7 +123,7 @@ class ComicImageGenerator:
             {visual_description}
             
             Technical requirements:
-            - Aspect ratio: 16:9 landscape
+            - Aspect ratio: {aspect_ratio} landscape
             - Resolution: high definition, crisp details
             - Style: {style_info}
             - Composition: clear, balanced framing; no on-image text
@@ -126,6 +134,9 @@ class ComicImageGenerator:
             Grounding:
             - Depict ONLY the elements present in the "Visual content" above
             - Do NOT introduce new characters, symbols, or text
+            - Absolutely no on-image text, words, letters, logos, watermarks, captions, UI or signage
+            {negatives_text}
+            {sheets_text}
             
             Quality standards:
             - Professional comic art quality
@@ -236,7 +247,8 @@ class ComicImageGenerator:
 
     def generate_comic_image(self, scene_prompt: str, output_path: str, scene_num: int, 
                            attempt: int = 1, max_retries: int = 3, timeout: int = 120,
-                           use_fallback: bool = False) -> bool:
+                           use_fallback: bool = False, style_sheet: str = "", character_sheet: str = "",
+                           negative_concepts: Optional[List[str]] = None, aspect_ratio: str = "16:9") -> bool:
         """
         Generate a comic image based on a scene prompt
         
@@ -263,7 +275,13 @@ class ComicImageGenerator:
         scene_prompt = re.sub(r'^\s*(Narrator|Caption|Voiceover|Voice-over|Announcer)\s*:\s*.*$', '', scene_prompt, flags=re.IGNORECASE | re.MULTILINE)
         
         # Enhance the scene prompt for better image generation
-        enhanced_prompt = self._enhance_scene_prompt(scene_prompt)
+        enhanced_prompt = self._enhance_scene_prompt(
+            scene_prompt,
+            style_sheet=style_sheet,
+            character_sheet=character_sheet,
+            negative_concepts=negative_concepts,
+            aspect_ratio=aspect_ratio
+        )
             
         payload = {"inputs": enhanced_prompt, "options": {"wait_for_model": True}}
         logger.info(f"Generating image for scene {scene_num}, attempt {attempt}" + 
@@ -365,7 +383,8 @@ class ComicImageGenerator:
             return False
 
     def generate_comic_strip(self, scene_prompts: List[str], output_dir: str, comic_title: str,
-                           fallback_free_model: str = None) -> List[str]:
+                           fallback_free_model: str = None, style_sheet: str = "", character_sheet: str = "",
+                           negative_concepts: Optional[List[str]] = None, aspect_ratio: str = "16:9") -> List[str]:
         """
         Generate a full comic strip from scene prompts
         
@@ -405,7 +424,15 @@ class ComicImageGenerator:
             scene_num = i + 1
             output_path = os.path.join(comic_dir, f"scene_{scene_num}.jpg")
             
-            success = self.generate_comic_image(scene_prompt, output_path, scene_num)
+            success = self.generate_comic_image(
+                scene_prompt,
+                output_path,
+                scene_num,
+                style_sheet=style_sheet,
+                character_sheet=character_sheet,
+                negative_concepts=negative_concepts,
+                aspect_ratio=aspect_ratio
+            )
             
             if success:
                 image_paths.append(output_path)

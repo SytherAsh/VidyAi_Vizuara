@@ -136,7 +136,8 @@ class StoryGenerator:
             return f"Error generating storyline: {str(e)}"
 
     def generate_scene_prompts(self, title: str, storyline: str, comic_style: str, num_scenes: int = 10, 
-                              age_group: str = "general", education_level: str = "standard") -> List[str]:
+                              age_group: str = "general", education_level: str = "standard",
+                              negative_concepts: List[str] = None, character_sheet: str = "", style_sheet: str = "") -> List[str]:
         """
         Generate detailed scene prompts for comic panels based on the storyline
         
@@ -180,6 +181,14 @@ class StoryGenerator:
         }.get(education_level.lower(), "Present educational content with balanced complexity suitable for interested general readers.")
         
         # Create prompt for the LLM (no dialog lines; concise visual-only prompts)
+        negatives_text = ""
+        if negative_concepts:
+            negatives_text = "\nGLOBAL BANS (strictly avoid): " + ", ".join(negative_concepts)
+        sheets_text = ""
+        if style_sheet:
+            sheets_text += f"\nSTYLE SHEET (follow consistently): {style_sheet}"
+        if character_sheet:
+            sheets_text += f"\nCHARACTER SHEET (identities, outfits, colors): {character_sheet}"
         prompt = f"""
         Based on the following comic storyline about "{title}", create EXACTLY {num_scenes} sequential scene prompts for image generation.
 
@@ -190,11 +199,14 @@ class StoryGenerator:
         4. Maintain character and setting consistency across scenes
         5. Adhere to the {comic_style} style characteristics
         6. Do NOT introduce new facts, characters, places, or events not present in the storyline
+        7. Absolutely NO on-image text, letters, logos, watermarks, captions, signage, UI elements
 
         STYLE PARAMETERS:
         - Comic Style: {comic_style} — {style_guidance}
         - Age Group: {age_group} — {age_guidance}
         - Education Level: {education_level} — {education_guidance}
+        {negatives_text}
+        {sheets_text}
 
         STORYLINE TO CONVERT (the only source of truth; no external inventions):
         {storyline}

@@ -7,7 +7,8 @@ from wikipedia_extractor import WikipediaExtractor
 from story_generator import StoryGenerator
 from comic_image_generator import ComicImageGenerator
 from narration_generator import NarrationGenerator
-from tts_generator import generate_scene_audios, synthesize_to_mp3
+from tts_generator import generate_scene_audios, synthesize_to_mp3, estimate_tts_duration_seconds
+from video_editor import build_video
 
 # Load environment variables from .env if present
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -187,6 +188,17 @@ def main():
         # Update session state
         st.session_state.narration_style = narration_style
         st.session_state.voice_tone = voice_tone
+
+        st.markdown("---")
+        st.markdown("## Video Settings")
+        target_total_seconds = st.number_input("Target Total Video Duration (seconds)", min_value=0, max_value=600, value=0, help="0 = auto from audio")
+        min_scene_seconds = st.number_input("Minimum Scene Duration (seconds)", min_value=1, max_value=10, value=2)
+        fps = st.selectbox("Frame Rate", options=[24, 25, 30], index=2)
+        resolution = st.selectbox("Resolution", options=["1280x720", "1920x1080"], index=1)
+        bgm_enabled = st.checkbox("Enable background music (optional)", value=False)
+        negative_concepts = st.text_input("Negative concepts to avoid (comma-separated)", value="text, letters, captions, subtitles, watermark, logo")
+        style_sheet = st.text_area("Style sheet (optional)", value="", help="Global art directives")
+        character_sheet = st.text_area("Character sheet (optional)", value="", help="Names, outfits, colors to keep consistent")
         
         st.markdown("---")
         st.markdown("### About")
@@ -391,7 +403,11 @@ def main():
                     image_paths = image_generator.generate_comic_strip(
                         st.session_state.scene_prompts,
                         "data/images",
-                        st.session_state.page_info["title"]
+                        st.session_state.page_info["title"],
+                        style_sheet=style_sheet,
+                        character_sheet=character_sheet,
+                        negative_concepts=[s.strip() for s in negative_concepts.split(',') if s.strip()],
+                        aspect_ratio="16:9"
                     )
                     st.session_state.comic_images = image_paths
                     
@@ -491,6 +507,50 @@ def main():
                     st.markdown(f"Scene {scene_num}")
                     with open(mp3_path, "rb") as f:
                         st.audio(f.read(), format="audio/mp3")
+
+        # Generate Final Video
+        if st.session_state.comic_images and hasattr(st.session_state, "audio_paths") and st.session_state.audio_paths:
+            st.markdown("---")
+            st.markdown('<div class="sub-header">Generate Final Video</div>', unsafe_allow_html=True)
+            if st.button("Generate Final Video", type="primary"):
+                with st.spinner("Assembling video..."):
+                    # Compute per-scene target seconds if user provided total
+                    audio_map = st.session_state.audio_paths
+                    if target_total_seconds and target_total_seconds > 0:
+                        # Scale factor to match target
+                        est_total = sum(estimate_tts_duration_seconds(st.session_state.narrations["narrations"][k]["narration"]) for k in audio_map.keys())
+                        scale = target_total_seconds / est_total if est_total > 0 else 1.0
+                        per_scene_min = max(1.0, min_scene_seconds * scale)
+                    else:
+                        per_scene_min = float(min_scene_seconds)
+
+                    w, h = (1920, 1080) if resolution == "1920x1080" else (1280, 720)
+                    out_dir = os.path.join("data", "videos", st.session_state.page_info["title"].replace('/', '_'))
+                    result = build_video(
+                        images=st.session_state.comic_images,
+                        scene_audio=audio_map,
+                        out_dir=out_dir,
+                        title=st.session_state.page_info["title"],
+                        fps=int(fps),
+                        resolution=(w, h),
+                        crossfade_sec=0.3,
+                        min_scene_seconds=per_scene_min,
+                        head_pad=0.15,
+                        tail_pad=0.15,
+                        bg_music_path=None if not bgm_enabled else "",
+                        bg_music_volume=0.08
+                    )
+                    st.session_state.final_video = result["video_path"]
+                    st.success("Final video generated!")
+                    if os.path.exists(st.session_state.final_video):
+                        with open(st.session_state.final_video, "rb") as f:
+                            st.video(f.read())
+                        st.download_button(
+                            label="Download MP4",
+                            data=open(st.session_state.final_video, "rb").read(),
+                            file_name=os.path.basename(st.session_state.final_video),
+                            mime="video/mp4"
+                        )
     
     # Display generated comic images
     if st.session_state.comic_images:

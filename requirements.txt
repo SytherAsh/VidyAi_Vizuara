@@ -6,4 +6,11 @@ Pillow
 regex
 python-dotenv
 edge-tts
+moviepy
+imageio
+imageio-ffmpeg
+numpy
+pydub
+soundfile
+ffmpeg-python
 

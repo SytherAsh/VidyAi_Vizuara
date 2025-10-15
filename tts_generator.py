@@ -33,6 +33,14 @@ def synthesize_to_mp3(text: str, output_path: str, voice: str = "en-IN-NeerjaNeu
             loop.run_until_complete(_synthesize_to_mp3_async(text, output_path, voice=voice, rate=rate, volume=volume))
 
 
+def estimate_tts_duration_seconds(text: str) -> float:
+    """
+    Rough estimate for English: ~2.5 words/sec.
+    """
+    words = [w for w in text.strip().split() if w]
+    return max(0.0, len(words) / 2.5)
+
+
 def generate_scene_audios(narrations: Dict[str, Any], title: str, base_dir: str = "data/narration", voice: str = "en-IN-NeerjaNeural", rate: str = "+0%", volume: str = "+0%") -> Dict[str, str]:
     """
     Generate MP3 files per scene from a narrations dict produced by NarrationGenerator.
