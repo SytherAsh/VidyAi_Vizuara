@@ -8,7 +8,7 @@ from story_generator import StoryGenerator
 from comic_image_generator import ComicImageGenerator
 from narration_generator import NarrationGenerator
 from tts_generator import generate_scene_audios, synthesize_to_mp3, estimate_tts_duration_seconds
-from video_editor import build_video
+from video_creator import create_video, list_available_topics, list_available_audio_topics
 
 # Load environment variables from .env if present
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -16,7 +16,7 @@ load_dotenv()
 
 # Default API keys (loaded from environment if available)
 GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
-HF_API_TOKEN: Optional[str] = os.getenv("HF_API_TOKEN")
+GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
 
 # Configure logging
 logging.basicConfig(
@@ -61,6 +61,10 @@ def main():
         st.session_state.narration_style = "dramatic"
     if 'voice_tone' not in st.session_state:
         st.session_state.voice_tone = "engaging"
+    if 'final_video' not in st.session_state:
+        st.session_state.final_video = None
+    if 'audio_paths' not in st.session_state:
+        st.session_state.audio_paths = None
     
     # Add custom CSS
     st.markdown("""
@@ -120,7 +124,7 @@ def main():
         
         # API keys
         groq_api_key = st.text_input("Groq API Key", type="password", value=GROQ_API_KEY)
-        hf_token = st.text_input("Hugging Face API Token", type="password", value=HF_API_TOKEN, help="Enter your Hugging Face API token")
+        gemini_api_key = st.text_input("Gemini API Key", type="password", value=GEMINI_API_KEY, help="Enter your Google Gemini API key")
         
         st.markdown("## Settings")
         
@@ -395,11 +399,11 @@ def main():
         
         # Generate comic images button
         if st.button("Generate Comic Images", type="primary"):
-            if not hf_token:
-                st.error("Please enter your Hugging Face API token in the sidebar to continue.")
+            if not gemini_api_key:
+                st.error("Please enter your Gemini API key in the sidebar to continue.")
             else:
                 with st.spinner(f"Generating {len(st.session_state.scene_prompts)} comic images... This may take several minutes."):
-                    image_generator = ComicImageGenerator(hf_token=hf_token)
+                    image_generator = ComicImageGenerator(api_key=gemini_api_key)
                     image_paths = image_generator.generate_comic_strip(
                         st.session_state.scene_prompts,
                         "data/images",
@@ -498,7 +502,7 @@ def main():
                     st.success(f"Generated MP3 for scene {int(scene_num_single)}")
 
         # Preview audio players if available
-        if hasattr(st.session_state, "audio_paths") and st.session_state.audio_paths:
+        if st.session_state.audio_paths:
             st.markdown("### Scene Audio Previews")
             for scene_key, scene_data in st.session_state.narrations["narrations"].items():
                 scene_num = scene_data["scene_number"]
@@ -509,48 +513,148 @@ def main():
                         st.audio(f.read(), format="audio/mp3")
 
         # Generate Final Video
-        if st.session_state.comic_images and hasattr(st.session_state, "audio_paths") and st.session_state.audio_paths:
+        if st.session_state.comic_images:
             st.markdown("---")
             st.markdown('<div class="sub-header">Generate Final Video</div>', unsafe_allow_html=True)
-            if st.button("Generate Final Video", type="primary"):
-                with st.spinner("Assembling video..."):
-                    # Compute per-scene target seconds if user provided total
-                    audio_map = st.session_state.audio_paths
-                    if target_total_seconds and target_total_seconds > 0:
-                        # Scale factor to match target
-                        est_total = sum(estimate_tts_duration_seconds(st.session_state.narrations["narrations"][k]["narration"]) for k in audio_map.keys())
-                        scale = target_total_seconds / est_total if est_total > 0 else 1.0
-                        per_scene_min = max(1.0, min_scene_seconds * scale)
+            
+            # Video settings
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                video_resolution = st.selectbox(
+                    "Video Resolution",
+                    options=["1920x1080", "1280x720", "1080p", "720p"],
+                    index=0,
+                    help="Select the output video resolution"
+                )
+            with col2:
+                video_fps = st.selectbox(
+                    "Frames Per Second",
+                    options=[24, 30, 60],
+                    index=1,
+                    help="Select the video frame rate"
+                )
+            with col3:
+                video_quality = st.selectbox(
+                    "Video Quality",
+                    options=["High", "Medium", "Low"],
+                    index=0,
+                    help="Select the video quality setting"
+                )
+            
+            # Background music option
+            bgm_enabled = st.checkbox("Add Background Music", value=False)
+            bgm_path = None
+            bgm_volume = 0.08
+            
+            if bgm_enabled:
+                bgm_path = st.file_uploader(
+                    "Upload Background Music",
+                    type=['mp3', 'wav', 'm4a'],
+                    help="Upload a background music file (optional)"
+                )
+                if bgm_path:
+                    # Save uploaded file temporarily
+                    temp_bgm_path = os.path.join("temp", f"bgm_{st.session_state.page_info['title']}.{bgm_path.name.split('.')[-1]}")
+                    os.makedirs("temp", exist_ok=True)
+                    with open(temp_bgm_path, "wb") as f:
+                        f.write(bgm_path.getbuffer())
+                    bgm_path = temp_bgm_path
+                
+                bgm_volume = st.slider(
+                    "Background Music Volume",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.08,
+                    step=0.01,
+                    help="Adjust the background music volume (0.0 = silent, 1.0 = full volume)"
+                )
+            
+            # Video generation buttons
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                if st.button("Generate Video with Audio", type="primary", disabled=not st.session_state.audio_paths):
+                    if not st.session_state.audio_paths:
+                        st.warning("Please generate audio files first!")
                     else:
-                        per_scene_min = float(min_scene_seconds)
-
-                    w, h = (1920, 1080) if resolution == "1920x1080" else (1280, 720)
-                    out_dir = os.path.join("data", "videos", st.session_state.page_info["title"].replace('/', '_'))
-                    result = build_video(
-                        images=st.session_state.comic_images,
-                        scene_audio=audio_map,
-                        out_dir=out_dir,
-                        title=st.session_state.page_info["title"],
-                        fps=int(fps),
-                        resolution=(w, h),
-                        crossfade_sec=0.3,
-                        min_scene_seconds=per_scene_min,
-                        head_pad=0.15,
-                        tail_pad=0.15,
-                        bg_music_path=None if not bgm_enabled else "",
-                        bg_music_volume=0.08
+                        with st.spinner("Creating video with audio..."):
+                            try:
+                                result = create_video(
+                                    title=st.session_state.page_info["title"],
+                                    resolution=video_resolution,
+                                    fps=video_fps,
+                                    crossfade=0.3,
+                                    min_scene_seconds=float(min_scene_seconds),
+                                    head_pad=0.15,
+                                    tail_pad=0.15,
+                                    bgm_path=bgm_path,
+                                    bgm_volume=bgm_volume,
+                                    use_audio=True,
+                                    verbose=False
+                                )
+                                
+                                if result:
+                                    st.session_state.final_video = result["video_path"]
+                                    st.success("🎉 Video with audio generated successfully!")
+                                else:
+                                    st.error("❌ Failed to generate video. Check logs for details.")
+                            except Exception as e:
+                                st.error(f"❌ Error generating video: {str(e)}")
+            
+            with col_b:
+                if st.button("Generate Video (Images Only)", type="secondary"):
+                    with st.spinner("Creating video with images only..."):
+                        try:
+                            result = create_video(
+                                title=st.session_state.page_info["title"],
+                                resolution=video_resolution,
+                                fps=video_fps,
+                                crossfade=0.3,
+                                min_scene_seconds=float(min_scene_seconds),
+                                head_pad=0.15,
+                                tail_pad=0.15,
+                                bgm_path=bgm_path,
+                                bgm_volume=bgm_volume,
+                                use_audio=False,
+                                verbose=False
+                            )
+                            
+                            if result:
+                                st.session_state.final_video = result["video_path"]
+                                st.success("🎉 Video generated successfully!")
+                            else:
+                                st.error("❌ Failed to generate video. Check logs for details.")
+                        except Exception as e:
+                            st.error(f"❌ Error generating video: {str(e)}")
+            
+            # Display generated video
+            if st.session_state.final_video and os.path.exists(st.session_state.final_video):
+                st.markdown("### 🎬 Your Generated Video")
+                
+                # Video info
+                file_size = os.path.getsize(st.session_state.final_video) / (1024 * 1024)  # MB
+                st.info(f"📁 File: {os.path.basename(st.session_state.final_video)} | 📏 Size: {file_size:.1f} MB")
+                
+                # Video player
+                with open(st.session_state.final_video, "rb") as f:
+                    st.video(f.read())
+                
+                # Download button
+                with open(st.session_state.final_video, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Video",
+                        data=f.read(),
+                        file_name=os.path.basename(st.session_state.final_video),
+                        mime="video/mp4",
+                        type="primary"
                     )
-                    st.session_state.final_video = result["video_path"]
-                    st.success("Final video generated!")
-                    if os.path.exists(st.session_state.final_video):
-                        with open(st.session_state.final_video, "rb") as f:
-                            st.video(f.read())
-                        st.download_button(
-                            label="Download MP4",
-                            data=open(st.session_state.final_video, "rb").read(),
-                            file_name=os.path.basename(st.session_state.final_video),
-                            mime="video/mp4"
-                        )
+                
+                # Clean up temporary background music file
+                if bgm_path and os.path.exists(bgm_path):
+                    try:
+                        os.remove(bgm_path)
+                    except:
+                        pass
     
     # Display generated comic images
     if st.session_state.comic_images:
@@ -590,6 +694,176 @@ def main():
             st.session_state.story_saved = False
             st.session_state.narrations = None
             st.rerun()
+
+    # Additional section for creating videos from existing content
+    st.markdown("---")
+    st.markdown('<div class="sub-header">Create Video from Existing Content</div>', unsafe_allow_html=True)
+    st.markdown("Create videos from previously generated comic strips and audio files.")
+    
+    # List available topics
+    available_topics = list_available_topics()
+    available_audio_topics = list_available_audio_topics()
+    
+    if available_topics:
+        st.markdown("### Available Comic Strips")
+        
+        # Create a selectbox for topic selection
+        selected_existing_topic = st.selectbox(
+            "Select a comic strip to create video from:",
+            options=[""] + available_topics,
+            help="Choose from previously generated comic strips"
+        )
+        
+        if selected_existing_topic:
+            st.info(f"Selected: {selected_existing_topic}")
+            
+            # Check if audio is available
+            has_audio = selected_existing_topic in available_audio_topics
+            st.write(f"Audio available: {'✅ Yes' if has_audio else '❌ No'}")
+            
+            # Video settings for existing content
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                existing_resolution = st.selectbox(
+                    "Resolution",
+                    options=["1920x1080", "1280x720", "1080p", "720p"],
+                    index=0,
+                    key="existing_resolution"
+                )
+            with col2:
+                existing_fps = st.selectbox(
+                    "FPS",
+                    options=[24, 30, 60],
+                    index=1,
+                    key="existing_fps"
+                )
+            with col3:
+                existing_quality = st.selectbox(
+                    "Quality",
+                    options=["High", "Medium", "Low"],
+                    index=0,
+                    key="existing_quality"
+                )
+            
+            # Background music for existing content
+            existing_bgm_enabled = st.checkbox("Add Background Music", value=False, key="existing_bgm")
+            existing_bgm_path = None
+            existing_bgm_volume = 0.08
+            
+            if existing_bgm_enabled:
+                existing_bgm_path = st.file_uploader(
+                    "Upload Background Music",
+                    type=['mp3', 'wav', 'm4a'],
+                    help="Upload a background music file (optional)",
+                    key="existing_bgm_upload"
+                )
+                if existing_bgm_path:
+                    # Save uploaded file temporarily
+                    temp_bgm_path = os.path.join("temp", f"existing_bgm_{selected_existing_topic}.{existing_bgm_path.name.split('.')[-1]}")
+                    os.makedirs("temp", exist_ok=True)
+                    with open(temp_bgm_path, "wb") as f:
+                        f.write(existing_bgm_path.getbuffer())
+                    existing_bgm_path = temp_bgm_path
+                
+                existing_bgm_volume = st.slider(
+                    "Background Music Volume",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.08,
+                    step=0.01,
+                    help="Adjust the background music volume",
+                    key="existing_bgm_volume"
+                )
+            
+            # Video generation buttons for existing content
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                if st.button("Create Video with Audio", disabled=not has_audio, key="existing_with_audio"):
+                    if not has_audio:
+                        st.warning("No audio files found for this topic!")
+                    else:
+                        with st.spinner("Creating video with audio..."):
+                            try:
+                                result = create_video(
+                                    title=selected_existing_topic,
+                                    resolution=existing_resolution,
+                                    fps=existing_fps,
+                                    crossfade=0.3,
+                                    min_scene_seconds=2.0,
+                                    head_pad=0.15,
+                                    tail_pad=0.15,
+                                    bgm_path=existing_bgm_path,
+                                    bgm_volume=existing_bgm_volume,
+                                    use_audio=True,
+                                    verbose=False
+                                )
+                                
+                                if result:
+                                    st.success("🎉 Video with audio created successfully!")
+                                    st.session_state.existing_video = result["video_path"]
+                                else:
+                                    st.error("❌ Failed to create video. Check logs for details.")
+                            except Exception as e:
+                                st.error(f"❌ Error creating video: {str(e)}")
+            
+            with col_b:
+                if st.button("Create Video (Images Only)", key="existing_images_only"):
+                    with st.spinner("Creating video with images only..."):
+                        try:
+                            result = create_video(
+                                title=selected_existing_topic,
+                                resolution=existing_resolution,
+                                fps=existing_fps,
+                                crossfade=0.3,
+                                min_scene_seconds=2.0,
+                                head_pad=0.15,
+                                tail_pad=0.15,
+                                bgm_path=existing_bgm_path,
+                                bgm_volume=existing_bgm_volume,
+                                use_audio=False,
+                                verbose=False
+                            )
+                            
+                            if result:
+                                st.success("🎉 Video created successfully!")
+                                st.session_state.existing_video = result["video_path"]
+                            else:
+                                st.error("❌ Failed to create video. Check logs for details.")
+                        except Exception as e:
+                            st.error(f"❌ Error creating video: {str(e)}")
+            
+            # Display existing video if created
+            if hasattr(st.session_state, 'existing_video') and st.session_state.existing_video and os.path.exists(st.session_state.existing_video):
+                st.markdown("### 🎬 Generated Video from Existing Content")
+                
+                # Video info
+                file_size = os.path.getsize(st.session_state.existing_video) / (1024 * 1024)  # MB
+                st.info(f"📁 File: {os.path.basename(st.session_state.existing_video)} | 📏 Size: {file_size:.1f} MB")
+                
+                # Video player
+                with open(st.session_state.existing_video, "rb") as f:
+                    st.video(f.read())
+                
+                # Download button
+                with open(st.session_state.existing_video, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Video",
+                        data=f.read(),
+                        file_name=os.path.basename(st.session_state.existing_video),
+                        mime="video/mp4",
+                        type="primary",
+                        key="download_existing_video"
+                    )
+                
+                # Clean up temporary background music file
+                if existing_bgm_path and os.path.exists(existing_bgm_path):
+                    try:
+                        os.remove(existing_bgm_path)
+                    except:
+                        pass
+    else:
+        st.info("No existing comic strips found. Generate some comic strips first!")
 
 # Call main function if script is run directly
 if __name__ == "__main__":

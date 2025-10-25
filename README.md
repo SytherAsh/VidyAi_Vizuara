@@ -107,11 +107,11 @@ genai/
 
 #### 4. Image Generation (`ComicImageGenerator`)
 - **Purpose**: Generates comic panel images from text prompts
-- **Primary Model**: Black Forest Labs FLUX.1-dev
-- **Fallback Model**: RunwayML Stable Diffusion v1.5
+- **Model**: Google Gemini 2.5 Flash Image
 - **Features**:
-  - Automatic fallback on API failures
-  - Payment error handling
+  - High-quality comic book art generation
+  - Automatic retry on API failures
+  - Quota error handling
   - Placeholder image generation
   - Batch processing capabilities
 
@@ -144,33 +144,21 @@ genai/
 - **NEW**: Generates professional scene-by-scene narration
 - **NEW**: Creates voice-over ready text content
 
-### 2. Black Forest Labs FLUX.1-dev
-- **Provider**: Hugging Face Inference API
+### 2. Google Gemini 2.5 Flash Image
+- **Provider**: Google AI Studio
 - **Purpose**: Primary image generation model
 - **Capabilities**:
-  - State-of-the-art text-to-image generation
-  - High-resolution output (1024x1024)
+  - Advanced text-to-image generation
+  - High-resolution output (1280x720)
   - Excellent prompt following
-  - Photorealistic and artistic styles
+  - Professional comic book art quality
+  - Fast generation speed
 
 **Usage in Project**:
 - Generates comic panel images from scene prompts
 - Supports various art styles and visual themes
-- Produces high-quality visual content
-
-### 3. RunwayML Stable Diffusion v1.5
-- **Provider**: Hugging Face Inference API
-- **Purpose**: Fallback image generation model
-- **Capabilities**:
-  - Reliable text-to-image generation
-  - Good prompt understanding
-  - Free tier availability
-  - Consistent output quality
-
-**Usage in Project**:
-- Serves as backup when primary model fails
-- Handles payment/quota issues gracefully
-- Ensures project reliability
+- Produces high-quality comic book art
+- Handles complex visual descriptions
 
 ## 🛠️ Installation & Setup
 
@@ -194,7 +182,7 @@ pip install -r requirements.txt
 Create a `.env` file in the `wiki_streamlit` directory:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
-HF_API_TOKEN=your_huggingface_token_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 **API Key Setup**:
@@ -203,10 +191,10 @@ HF_API_TOKEN=your_huggingface_token_here
    - Sign up/login and generate an API key
    - Free tier includes generous usage limits
 
-2. **Hugging Face Token**:
-   - Visit [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-   - Create a new token with read permissions
-   - Free tier available for most models
+2. **Gemini API Key**:
+   - Visit [aistudio.google.com](https://aistudio.google.com)
+   - Sign up/login and generate an API key
+   - Free tier available with generous usage limits
 
 ### Step 4: Run the Application
 
@@ -268,7 +256,7 @@ curl "http://localhost:5000/search?query=Albert%20Einstein&lang=en"
 ```bash
 curl -X GET "http://localhost:5000/page_info?title=Albert%20Einstein&lang=en" \
   -H "Groq-Api-Key: your_groq_key" \
-  -H "Hf-Api-Key: your_hf_token"
+  -H "Gemini-Api-Key: your_gemini_key"
 ```
 
 ## ⚙️ Configuration Options
@@ -386,9 +374,9 @@ Each comic includes:
    - Ensure sufficient quota
 
 2. **Image Generation Failures**:
-   - Check Hugging Face token
-   - Verify model availability
-   - Try fallback model
+   - Check Gemini API key
+   - Verify API quota limits
+   - Check internet connection
 
 3. **Wikipedia Access Issues**:
    - Check internet connection

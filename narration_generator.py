@@ -4,6 +4,9 @@ import logging
 from typing import List, Dict, Any, Optional
 from groq import Groq
 
+# Configure logging
+logger = logging.getLogger("WikiComicGenerator")
+
 
 class NarrationGenerator:
     def __init__(self, api_key: str, text_dir: str = "data/text", narration_dir: str = "data/narration"):
@@ -401,5 +404,3 @@ class NarrationGenerator:
         
         return narration
 
-# Configure logging
-logger = logging.getLogger("WikiComicGenerator")

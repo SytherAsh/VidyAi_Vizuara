@@ -25,9 +25,9 @@ def page_info():
     title = request.args.get("title")
     lang = request.args.get("lang", "en")
     groq_api_key = request.headers.get("Groq-Api-Key")
-    hf_token = request.headers.get("Hf-Api-Key")
+    gemini_api_key = request.headers.get("Gemini-Api-Key")
 
-    if not all([title, groq_api_key, hf_token]):
+    if not all([title, groq_api_key, gemini_api_key]):
         return jsonify({"error": "Missing required title or API keys"}), 400
 
     try:
@@ -47,7 +47,7 @@ def page_info():
         scenes = story_generator.generate_scene_prompts(title, storyline, comic_style="Western", num_scenes=5)
 
         # Step 4: Generate images
-        image_generator = ComicImageGenerator(hf_token=hf_token)
+        image_generator = ComicImageGenerator(api_key=gemini_api_key)
         image_paths = image_generator.generate_comic_strip(scenes, IMAGE_DIR, title)
 
         return jsonify({

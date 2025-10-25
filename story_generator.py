@@ -2,7 +2,7 @@ import re
 import os
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from groq import Groq
 
 # Configure logging
@@ -137,7 +137,7 @@ class StoryGenerator:
 
     def generate_scene_prompts(self, title: str, storyline: str, comic_style: str, num_scenes: int = 10, 
                               age_group: str = "general", education_level: str = "standard",
-                              negative_concepts: List[str] = None, character_sheet: str = "", style_sheet: str = "") -> List[str]:
+                              negative_concepts: Optional[List[str]] = None, character_sheet: str = "", style_sheet: str = "") -> List[str]:
         """
         Generate detailed scene prompts for comic panels based on the storyline
         
