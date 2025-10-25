@@ -1,6 +1,57 @@
-/.venv
-/test
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
 .env
-wiki_comic_generator.log
-__pycache__
-data
+.history/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/images/
+data/videos/
+data/narration/*/audio/
+*.mp4
+*.mp3
+*.wav
+
+# Keep data structure but ignore generated content
+!data/.gitkeep
+!data/images/.gitkeep
+!data/videos/.gitkeep
+!data/narration/.gitkeep
